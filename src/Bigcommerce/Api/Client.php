@@ -1021,6 +1021,19 @@ class Client
         return self::getCollection('/products/skus' . $filter->toQuery(), 'Sku');
     }
 
+		/**
+		 * Get collection of product skus by Product ID
+		 *
+		 * @param int $product_id product id
+		 * @param array $filter
+		 * @return mixed
+		 */
+    public static function getSkusByProductId($product_id, $filter = array())
+    {
+        $filter = Filter::create($filter);
+        return self::getCollection('/products/' . $product_id . '/skus' . $filter->toQuery(), 'Sku');
+    }
+
     /**
      * Create sku
      *
