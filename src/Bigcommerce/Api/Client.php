@@ -109,10 +109,10 @@ class Client
         }
 
         if ('basic' === self::$auth_mode) {
-        self::$username = $settings['username'];
-        self::$api_key = $settings['api_key'];
-        self::$store_url = rtrim($settings['store_url'], '/');
-        self::$api_path = self::$store_url . self::$path_prefix;
+            self::$username = $settings['username'];
+            self::$api_key = $settings['api_key'];
+            self::$store_url = rtrim($settings['store_url'], '/');
+            self::$api_path = self::$store_url . self::$path_prefix;
         } elseif ('oauth' === self::$auth_mode) {
             self::$oauth_client_id = $settings['client_id'];
             self::$oauth_access_token = $settings['access_token'];
@@ -154,10 +154,10 @@ class Client
     /**
      * Switch SSL certificate verification on requests.
      */
-	public static function verifyPeer($option=false)
-	{
-		self::connection()->verifyPeer($option);
-	}
+    public static function verifyPeer($option=false)
+    {
+        self::connection()->verifyPeer($option);
+    }
 
 
     /**
@@ -188,19 +188,19 @@ class Client
      *
      * @return Connection
      */
-	private static function connection()
-	{
-		if (!self::$connection) {
-		 	self::$connection = new Connection();
+    private static function connection()
+    {
+        if (!self::$connection) {
+            self::$connection = new Connection();
             if ('basic' === self::$auth_mode) {
                 self::$connection->authenticate(self::$username, self::$api_key);
             } else {
                 self::$connection->oAuthAuthenticate(self::$oauth_client_id, self::$oauth_access_token);
             }
-		}
+        }
 
-		return self::$connection;
-	}
+        return self::$connection;
+    }
 
     /**
      * Convenience method to return instance of the connection
@@ -1059,13 +1059,13 @@ class Client
         return self::getCollection('/products/skus' . $filter->toQuery(), 'Sku');
     }
 
-		/**
-		 * Get collection of product skus by Product ID
-		 *
-		 * @param int $product_id product id
-		 * @param array $filter
-		 * @return mixed
-		 */
+    /**
+     * Get collection of product skus by Product ID
+     *
+     * @param int $product_id product id
+     * @param array $filter
+     * @return mixed
+     */
     public static function getSkusByProductId($product_id, $filter = array())
     {
         $filter = Filter::create($filter);
@@ -1172,11 +1172,22 @@ class Client
         return self::getCount('/coupons/count');
     }
 
+    /**
+     * Get webhooks
+     *
+     * @return mixed
+     */
     public static function listWebHook()
     {
         return self::getResource('/hooks');
     }
 
+    /**
+     * Get webhook
+     *
+     * @param int $id
+     * @return mixed
+     */
     public static function getWebHook($id)
     {
         return self::getResource('/hooks/' . $id);
