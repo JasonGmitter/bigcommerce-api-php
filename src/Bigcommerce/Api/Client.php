@@ -1009,6 +1009,11 @@ class Client
         return self::getCollection('/order_statuses', 'OrderStatus');
     }
 
+    public static function getOrderMessages($orderID)
+    {
+        return self::getCollection('/orders/' . $orderID . '/messages', 'OrderMessage');
+    }
+
     /**
      * Get collection of product skus
      *
