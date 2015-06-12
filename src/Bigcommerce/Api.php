@@ -24,6 +24,7 @@ require_once './Bigcommerce/Api/Resources/OptionSet.php';
 require_once './Bigcommerce/Api/Resources/OptionSetOption.php';
 require_once './Bigcommerce/Api/Resources/OptionValue.php';
 require_once './Bigcommerce/Api/Resources/Order.php';
+require_once './Bigcommerce/Api/Resources/OrderMessage.php';
 require_once './Bigcommerce/Api/Resources/OrderProduct.php';
 require_once './Bigcommerce/Api/Resources/OrderStatus.php';
 require_once './Bigcommerce/Api/Resources/Product.php';
