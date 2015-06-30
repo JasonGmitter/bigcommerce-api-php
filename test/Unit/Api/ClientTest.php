@@ -3,10 +3,15 @@
 namespace Bigcommerce\Test\Unit\Api;
 
 use Bigcommerce\Api\Client;
+use Bigcommerce\Api\Connection;
 
 class ClientTest extends \PHPUnit_Framework_TestCase
 {
+    /**
+     * @var Connection|\PHPUnit_Framework_MockObject_MockObject
+     */
     private $connection;
+    private $basePath = '';
 
     public function setUp()
     {
@@ -31,11 +36,18 @@ class ClientTest extends \PHPUnit_Framework_TestCase
             'getHeaders',
             '__destruct'
         );
+        $this->basePath = $this->getStaticAttribute('Bigcommerce\\Api\\Client', 'api_path');
         $this->connection = $this->getMockBuilder('Bigcommerce\\Api\\Connection')
             ->disableOriginalConstructor()
             ->setMethods($methods)
             ->getMock();
         Client::setConnection($this->connection);
+    }
+
+    public function tearDown()
+    {
+        Client::configure(array('username' => '', 'api_key' => '', 'store_url' => ''));
+        unset($this->connection);
     }
 
     public function testConfigureRequiresStoreUrl()
@@ -110,10 +122,10 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('http://storeurl/api/v2/whatever', false)
+            ->with('http://storeurl' . $this->basePath . '/whatever', false)
             ->will($this->returnValue(array(array())));
 
-        Client::configure(array('store_url' => 'http://storeurl/', 'username' => 'whatever', 'api_key' => 'whatever'));
+        Client::configure(array('store_url' => 'http://storeurl', 'username' => 'whatever', 'api_key' => 'whatever'));
         Client::setConnection($this->connection); // re-set the connection since Client::configure unsets it
         $resource = Client::getResource('/whatever');
         $this->assertInstanceOf('Bigcommerce\\Api\\Resource', $resource);
@@ -123,10 +135,10 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('http://storeurl/api/v2/whatever', false)
+            ->with('http://storeurl' . $this->basePath . '/whatever', false)
             ->will($this->returnValue((object)array('count' => 5)));
 
-        Client::configure(array('store_url' => 'http://storeurl/', 'username' => 'whatever', 'api_key' => 'whatever'));
+        Client::configure(array('store_url' => 'http://storeurl', 'username' => 'whatever', 'api_key' => 'whatever'));
         Client::setConnection($this->connection); // re-set the connection since Client::configure unsets it
         $count = Client::getCount('/whatever');
         $this->assertSame(5, $count);
@@ -136,10 +148,10 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('http://storeurl/api/v2/whatever', false)
+            ->with('http://storeurl' . $this->basePath . '/whatever', false)
             ->will($this->returnValue(array(array(), array())));
 
-        Client::configure(array('store_url' => 'http://storeurl/', 'username' => 'whatever', 'api_key' => 'whatever'));
+        Client::configure(array('store_url' => 'http://storeurl', 'username' => 'whatever', 'api_key' => 'whatever'));
         Client::setConnection($this->connection); // re-set the connection since Client::configure unsets it
         $resources = Client::getCollection('/whatever');
         $this->assertInternalType('array', $resources);
@@ -153,10 +165,10 @@ class ClientTest extends \PHPUnit_Framework_TestCase
         $new = array(rand() => rand());
         $this->connection->expects($this->once())
             ->method('post')
-            ->with('http://storeurl/api/v2/whatever', (object)$new)
+            ->with('http://storeurl' . $this->basePath . '/whatever', (object)$new)
             ->will($this->returnValue($new));
 
-        Client::configure(array('store_url' => 'http://storeurl/', 'username' => 'whatever', 'api_key' => 'whatever'));
+        Client::configure(array('store_url' => 'http://storeurl', 'username' => 'whatever', 'api_key' => 'whatever'));
         Client::setConnection($this->connection); // re-set the connection since Client::configure unsets it
         $result = Client::createResource('/whatever', $new);
         $this->assertSame($new, $result);
@@ -167,10 +179,10 @@ class ClientTest extends \PHPUnit_Framework_TestCase
         $update = array(rand() => rand());
         $this->connection->expects($this->once())
             ->method('put')
-            ->with('http://storeurl/api/v2/whatever', (object)$update)
+            ->with('http://storeurl' . $this->basePath . '/whatever', (object)$update)
             ->will($this->returnValue($update));
 
-        Client::configure(array('store_url' => 'http://storeurl/', 'username' => 'whatever', 'api_key' => 'whatever'));
+        Client::configure(array('store_url' => 'http://storeurl', 'username' => 'whatever', 'api_key' => 'whatever'));
         Client::setConnection($this->connection); // re-set the connection since Client::configure unsets it
         $result = Client::updateResource('/whatever', $update);
         $this->assertSame($update, $result);
@@ -180,10 +192,10 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('delete')
-            ->with('http://storeurl/api/v2/whatever')
+            ->with('http://storeurl' . $this->basePath . '/whatever')
             ->will($this->returnValue("Successfully deleted"));
 
-        Client::configure(array('store_url' => 'http://storeurl/', 'username' => 'whatever', 'api_key' => 'whatever'));
+        Client::configure(array('store_url' => 'http://storeurl', 'username' => 'whatever', 'api_key' => 'whatever'));
         Client::setConnection($this->connection); // re-set the connection since Client::configure unsets it
         $result = Client::deleteResource('/whatever');
         $this->assertSame("Successfully deleted", $result);
@@ -194,7 +206,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
         $now = new \DateTime();
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/time', false)
+            ->with($this->basePath . '/time', false)
             ->will($this->returnValue((object)array('time' => $now->format('U'))));
 
         $this->assertEquals($now, Client::getTime());
@@ -205,7 +217,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
         $body = array(rand() => rand());
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/store')
+            ->with($this->basePath . '/store')
             ->will($this->returnValue($body));
 
         $this->assertSame($body, Client::getStore());
@@ -228,7 +240,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
 
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/time', false)
+            ->with($this->basePath . '/time', false)
             ->will($this->returnValue((object)array('time' => time())));
 
         $this->assertSame(12345, Client::getRequestsRemaining());
@@ -259,7 +271,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/' . $path, false)
+            ->with($this->basePath . '/' . $path, false)
             ->will($this->returnValue(array(array(), array())));
 
         $collection = Client::$fnName();
@@ -274,13 +286,14 @@ class ClientTest extends \PHPUnit_Framework_TestCase
      */
     public function testGettingTheCountOfACollectionReturnsThatCollectionsCount($path, $fnName, $class)
     {
-        if (in_array($path, array('order_statuses', 'products/skus', 'requestlogs'))) {
-            $this->markTestSkipped(sprintf('The PHP client does not support getting the count of %s', $path));
+        if (in_array($path, array('order_statuses', 'requestlogs'))) {
+            //$this->markTestSkipped(sprintf('The API does not currently support getting the count of %s', $path));
+            return;
         }
 
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/' . $path . '/count', false)
+            ->with($this->basePath . '/' . $path . '/count', false)
             ->will($this->returnValue((object)array('count' => 7)));
 
         $fnName .= 'Count';
@@ -291,15 +304,15 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     public function resources()
     {
         return array(
-            //    path               function          classname
-            array('products',        '%sProduct',      'Product'),
-            array('brands',          '%sBrand',        'Brand'),
-            array('orders',          '%sOrder',        'Order'),
-            array('customers',       '%sCustomer',     'Customer'),
-            array('categories',      '%sCategory',     'Category'),
-            array('options',         '%sOption',       'Option'),
-            array('optionsets',      '%sOptionSet',    'OptionSet'),
-            array('coupons',         '%sCoupon',       'Coupon'),
+            //    path            function        classname
+            array('products',     '%sProduct',    'Product'),
+            array('brands',       '%sBrand',      'Brand'),
+            array('orders',       '%sOrder',      'Order'),
+            array('customers',    '%sCustomer',   'Customer'),
+            array('categories',   '%sCategory',   'Category'),
+            array('options',      '%sOption',     'Option'),
+            array('optionsets',   '%sOptionSet',  'OptionSet'),
+            array('coupons',      '%sCoupon',     'Coupon'),
         );
     }
 
@@ -308,13 +321,9 @@ class ClientTest extends \PHPUnit_Framework_TestCase
      */
     public function testGettingASpecificResourceReturnsThatResource($path, $fnName, $class)
     {
-        if (in_array($path, array('coupons'))) {
-            $this->markTestSkipped(sprintf('The php client does not support getting a specified %s', $path));
-        }
-
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/' . $path . '/1', false)
+            ->with($this->basePath . '/' . $path . '/1', false)
             ->will($this->returnValue(array(array(), array())));
 
         $fnName = sprintf($fnName, 'get');
@@ -327,16 +336,12 @@ class ClientTest extends \PHPUnit_Framework_TestCase
      */
     public function testCreatingASpecificResourcePostsToThatResource($path, $fnName, $class)
     {
-        if (in_array($path, array('options', 'optionsets'))) {
-            $this->markTestSkipped(sprintf('The php client does not support creating a specified %s', $path));
-        }
-
         $this->connection->expects($this->once())
             ->method('post')
-            ->with('/' . $path, (object)array());
+            ->with($this->basePath . '/' . $path, (object)array());
 
         $fnName = sprintf($fnName, 'create');
-        $resource = Client::$fnName(array());
+        Client::$fnName(array());
     }
 
     /**
@@ -344,16 +349,12 @@ class ClientTest extends \PHPUnit_Framework_TestCase
      */
     public function testDeletingASpecificResourceDeletesToThatResource($path, $fnName, $class)
     {
-        if (in_array($path, array('optionsets', 'coupons'))) {
-            $this->markTestSkipped(sprintf('The php client does not support deleting a specified %s', $path));
-        }
-
         $this->connection->expects($this->once())
             ->method('delete')
-            ->with('/' . $path . '/1');
+            ->with($this->basePath . '/' . $path . '/1');
 
         $fnName = sprintf($fnName, 'delete');
-        $resource = Client::$fnName(1);
+        Client::$fnName(1);
     }
 
     /**
@@ -361,16 +362,12 @@ class ClientTest extends \PHPUnit_Framework_TestCase
      */
     public function testUpdatingASpecificResourcePutsToThatResource($path, $fnName, $class)
     {
-        if (in_array($path, array('orders', 'options', 'optionsets'))) {
-            $this->markTestSkipped(sprintf('The php client does not support updating a specified %s', $path));
-        }
-
         $this->connection->expects($this->once())
             ->method('put')
-            ->with('/' . $path . '/1');
+            ->with($this->basePath . '/' . $path . '/1');
 
         $fnName = sprintf($fnName, 'update');
-        $resource = Client::$fnName(1, array());
+        Client::$fnName(1, array());
     }
 
     // hand-test the Sku resource because of the wonky urls
@@ -378,25 +375,25 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('post')
-            ->with('/product/skus', (object)array());
+            ->with($this->basePath . '/product/skus', (object)array());
 
-        $resource = Client::createSku(array());
+        Client::createSku(array());
     }
 
     public function testUpdatingASkuPutsToTheSkuResource()
     {
         $this->connection->expects($this->once())
             ->method('put')
-            ->with('/product/skus/1', (object)array());
+            ->with($this->basePath . '/product/skus/1', (object)array());
 
-        $resource = Client::updateSku(1, array());
+        Client::updateSku(1, array());
     }
 
     public function testGettingProductImagesReturnsCollectionOfProductImages()
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/products/1/images/', false)
+            ->with($this->basePath . '/products/1/images/', false)
             ->will($this->returnValue(array(array(), array())));
 
         $collection = Client::getProductImages(1);
@@ -410,7 +407,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/products/1/customfields/', false)
+            ->with($this->basePath . '/products/1/customfields/', false)
             ->will($this->returnValue(array(array(), array())));
 
         $collection = Client::getProductCustomFields(1);
@@ -424,7 +421,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/products/1/customfields/1', false)
+            ->with($this->basePath . '/products/1/customfields/1', false)
             ->will($this->returnValue(array(array(), array())));
 
         $resource = Client::getProductCustomField(1, 1);
@@ -435,7 +432,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/options/1/values/1', false)
+            ->with($this->basePath . '/options/1/values/1', false)
             ->will($this->returnValue(array(array(), array())));
 
         $resource = Client::getOptionValue(1, 1);
@@ -446,7 +443,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/customers/1/addresses', false)
+            ->with($this->basePath . '/customers/1/addresses', false)
             ->will($this->returnValue(array(array(), array())));
 
         $collection = Client::getCustomerAddresses(1);
@@ -460,7 +457,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/options/values', false)
+            ->with($this->basePath . '/options/values', false)
             ->will($this->returnValue(array(array(), array())));
 
         $collection = Client::getOptionValues();
@@ -474,43 +471,43 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('post')
-            ->with('/optionsets', (object)array());
+            ->with($this->basePath . '/optionsets', (object)array());
 
-        $resource = Client::createOptionsets(array());
+        Client::createOptionSet(array());
     }
 
     public function testCreatingAnOptionPostsToTheOptionResource()
     {
         $this->connection->expects($this->once())
             ->method('post')
-            ->with('/options', (object)array());
+            ->with($this->basePath . '/options', (object)array());
 
-        $resource = Client::createOptions(array());
+        Client::createOption(array());
     }
 
-    public function testCreatingAnOptionSetsOptionPostsToTheOptionSetsOptionResource()
+    public function testCreatingAnOptionSetOptionPostsToTheOptionSetsOptionsResource()
     {
         $this->connection->expects($this->once())
             ->method('post')
-            ->with('/optionsets/1/options', (object)array());
+            ->with($this->basePath . '/optionsets/1/options', (object)array());
 
-        $resource = Client::createOptionsets_Options(array(), 1);
+        Client::createOptionSetOption(array(), 1);
     }
 
     public function testCreatingAProductCustomFieldPostsToTheProductCustomFieldResource()
     {
         $this->connection->expects($this->once())
             ->method('post')
-            ->with('/products/1/customfields', (object)array());
+            ->with($this->basePath . '/products/1/customfields', (object)array());
 
-        $resource = Client::createProductCustomField(1, array());
+        Client::createProductCustomField(1, array());
     }
 
     public function testUpdatingAProductCustomFieldPutsToTheProductCustomFieldResource()
     {
         $this->connection->expects($this->once())
             ->method('put')
-            ->with('/products/1/customfields/1', (object)array());
+            ->with($this->basePath . '/products/1/customfields/1', (object)array());
 
         Client::updateProductCustomField(1, 1, array());
     }
@@ -519,7 +516,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('delete')
-            ->with('/products/1/customfields/1');
+            ->with($this->basePath . '/products/1/customfields/1');
 
         Client::deleteProductCustomField(1, 1);
     }
@@ -528,7 +525,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('delete')
-            ->with('/customers');
+            ->with($this->basePath . '/customers');
 
         Client::deleteCustomers();
     }
@@ -537,7 +534,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('delete')
-            ->with('/coupons');
+            ->with($this->basePath . '/coupons');
 
         Client::deleteAllCoupons();
     }
@@ -546,7 +543,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('delete')
-            ->with('/coupons/1');
+            ->with($this->basePath . '/coupons/1');
 
         Client::deleteCoupon(1);
     }
@@ -555,7 +552,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/coupons/1', false)
+            ->with($this->basePath . '/coupons/1', false)
             ->will($this->returnValue(array(array(), array())));
 
         $resource = Client::getCoupon(1);
@@ -566,7 +563,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/order_statuses/1', false)
+            ->with($this->basePath . '/order_statuses/1', false)
             ->will($this->returnValue(array(array(), array())));
 
         $resource = Client::getOrderStatus(1);
@@ -577,16 +574,43 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('delete')
-            ->with('/orders');
+            ->with($this->basePath . '/orders');
 
         Client::deleteAllOrders();
+    }
+
+    public function testDeletingAllBrandsDeletesToTheBrandsResource()
+    {
+        $this->connection->expects($this->once())
+            ->method('delete')
+            ->with($this->basePath . '/brands');
+
+        Client::deleteAllBrands();
+    }
+
+    public function testDeletingAllCategoriesDeletesToTheCategoriesResource()
+    {
+        $this->connection->expects($this->once())
+            ->method('delete')
+            ->with($this->basePath . '/categories');
+
+        Client::deleteAllCategories();
+    }
+
+    public function testDeletingAllProductsDeletesToTheProductsResource()
+    {
+        $this->connection->expects($this->once())
+            ->method('delete')
+            ->with($this->basePath . '/products');
+
+        Client::deleteAllProducts();
     }
 
     public function testGettingOrderProductsCountCountsToTheOrderProductsResource()
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/orders/1/products/count', false)
+            ->with($this->basePath . '/orders/1/products/count', false)
             ->will($this->returnValue((object)array('count' => 7)));
 
         $count = Client::getOrderProductsCount(1);
@@ -597,18 +621,32 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/orders/1/shipments/1', false)
+            ->with($this->basePath . '/orders/1/shipments/1', false)
             ->will($this->returnValue(array(array(), array())));
 
         $resource = Client::getShipment(1, 1);
         $this->assertInstanceOf('Bigcommerce\\Api\\Resources\\Shipment', $resource);
     }
 
+    public function testGettingOrderProductsReturnsTheOrderProductsCollection()
+    {
+        $this->connection->expects($this->once())
+            ->method('get')
+            ->with($this->basePath . '/orders/1/products', false)
+            ->will($this->returnValue(array(array(), array())));
+
+        $collection = Client::getOrderProducts(1);
+        $this->assertInternalType('array', $collection);
+        foreach ($collection as $resource) {
+            $this->assertInstanceOf('Bigcommerce\\Api\\Resources\\OrderProduct', $resource);
+        }
+    }
+
     public function testGettingOrderShipmentsReturnsTheOrderShipmentsResource()
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/orders/1/shipments', false)
+            ->with($this->basePath . '/orders/1/shipments', false)
             ->will($this->returnValue(array(array(), array())));
 
         $collection = Client::getShipments(1);
@@ -622,7 +660,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('post')
-            ->with('/orders/1/shipments', (object)array());
+            ->with($this->basePath . '/orders/1/shipments', (object)array());
 
         Client::createShipment(1, array());
     }
@@ -631,7 +669,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('put')
-            ->with('/orders/1/shipments/1', (object)array());
+            ->with($this->basePath . '/orders/1/shipments/1', (object)array());
 
         Client::updateShipment(1, 1, array());
     }
@@ -640,7 +678,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('delete')
-            ->with('/orders/1/shipments');
+            ->with($this->basePath . '/orders/1/shipments');
 
         Client::deleteAllShipmentsForOrder(1);
     }
@@ -649,7 +687,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('delete')
-            ->with('/orders/1/shipments/1');
+            ->with($this->basePath . '/orders/1/shipments/1');
 
         Client::deleteShipment(1, 1);
     }
@@ -658,7 +696,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/orders/1/shipping_addresses/1', false)
+            ->with($this->basePath . '/orders/1/shipping_addresses/1', false)
             ->will($this->returnValue(array(array(), array())));
 
         $resource = Client::getOrderShippingAddress(1, 1);
@@ -669,7 +707,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     {
         $this->connection->expects($this->once())
             ->method('get')
-            ->with('/orders/1/shipping_addresses', false)
+            ->with($this->basePath . '/orders/1/shipping_addresses', false)
             ->will($this->returnValue(array(array(), array())));
 
         $collection = Client::getOrderShippingAddresses(1);

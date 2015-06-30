@@ -57,6 +57,58 @@ class Client
      * @var string
      */
     static public $api_path;
+    static private $client_id;
+    static private $store_hash;
+    static private $auth_token;
+    static private $stores_prefix = '/stores/%s/v2';
+    static private $api_url = 'https://api.bigcommerce.com';
+    static private $login_url = 'https://login.bigcommerce.com';
+
+    /**
+     * Configure the API client with the required settings to access
+     * the API for a store.
+     *
+     * Accepts OAuth and (for now!) Basic Auth credentials
+     *
+     * @param array $settings
+     */
+    public static function configure($settings)
+    {
+        if (isset($settings['client_id'])) {
+            self::configureOAuth($settings);
+        } else {
+            self::configureBasicAuth($settings);
+        }
+    }
+
+    /**
+     * Configure the API client with the required OAuth credentials.
+     *
+     * Requires a settings array to be passed in with the following keys:
+     *
+     * - client_id
+     * - auth_token
+     * - store_hash
+     *
+     * @param array $settings
+     * @throws \Exception
+     */
+    public static function configureOAuth($settings)
+    {
+        if (!isset($settings['auth_token'])) {
+            throw new Exception("'auth_token' must be provided");
+        }
+
+        if (!isset($settings['store_hash'])) {
+            throw new Exception("'store_hash' must be provided");
+        }
+
+        self::$client_id = $settings['client_id'];
+        self::$auth_token = $settings['auth_token'];
+        self::$store_hash = $settings['store_hash'];
+        self::$api_path = self::$api_url . sprintf(self::$stores_prefix, self::$store_hash);
+        self::$connection = false;
+    }
 
     /**
      * Configure the API client with the required credentials.
@@ -70,7 +122,7 @@ class Client
      * @param array $settings
      * @throws \Exception
      */
-    public static function configure(array $settings)
+    public static function configureBasicAuth(array $settings)
     {
         if (!isset($settings['store_url'])) {
             throw new Exception("'store_url' must be provided");
@@ -95,6 +147,8 @@ class Client
      * Configure the API client to throw exceptions when HTTP errors occur.
      *
      * Note that network faults will always cause an exception to be thrown.
+     *
+     * @param bool $option sets the value of this flag
      */
     public static function failOnError($option = true)
     {
@@ -120,6 +174,8 @@ class Client
 
     /**
      * Switch SSL certificate verification on requests.
+     *
+     * @param bool $option sets the value of this flag
      */
     public static function verifyPeer($option = false)
     {
@@ -130,7 +186,7 @@ class Client
      * Connect to the internet through a proxy server.
      *
      * @param string $host host server
-     * @param bool $port port
+     * @param int|bool $port port number to use, or false
      */
     public static function useProxy($host, $port = false)
     {
@@ -158,7 +214,11 @@ class Client
     {
         if (!self::$connection) {
             self::$connection = new Connection();
-            self::$connection->authenticate(self::$username, self::$api_key);
+            if (self::$client_id) {
+                self::$connection->authenticateOauth(self::$client_id, self::$auth_token);
+            } else {
+                self::$connection->authenticateBasic(self::$username, self::$api_key);
+            }
         }
 
         return self::$connection;
@@ -222,7 +282,9 @@ class Client
     {
         $response = self::connection()->get(self::$api_path . $path);
 
-        if ($response == false || is_string($response)) return $response;
+        if ($response == false || is_string($response)) {
+            return $response;
+        }
 
         return $response->count;
     }
@@ -232,11 +294,13 @@ class Client
      *
      * @param string $path api endpoint
      * @param mixed $object object or XML string to create
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function createResource($path, $object)
     {
-        if (is_array($object)) $object = (object)$object;
+        if (is_array($object)) {
+            $object = (object)$object;
+        }
 
         return self::connection()->post(self::$api_path . $path, $object);
     }
@@ -246,11 +310,13 @@ class Client
      *
      * @param string $path api endpoint
      * @param mixed $object object or XML string to update
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function updateResource($path, $object)
     {
-        if (is_array($object)) $object = (object)$object;
+        if (is_array($object)) {
+            $object = (object)$object;
+        }
 
         return self::connection()->put(self::$api_path . $path, $object);
     }
@@ -259,7 +325,7 @@ class Client
      * Send a delete request to remove the specified resource.
      *
      * @param string $path api endpoint
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function deleteResource($path)
     {
@@ -275,7 +341,9 @@ class Client
      */
     private static function mapCollection($resource, $object)
     {
-        if ($object == false || is_string($object)) return $object;
+        if ($object == false || is_string($object)) {
+            return $object;
+        }
 
         $baseResource = __NAMESPACE__ . '\\' . $resource;
         self::$resource = (class_exists($baseResource)) ? $baseResource : 'Bigcommerce\\Api\\Resources\\' . $resource;
@@ -286,7 +354,7 @@ class Client
     /**
      * Callback for mapping collection objects resource classes.
      *
-     * @param stdClass $object
+     * @param \stdClass $object
      * @return Resource
      */
     private static function mapCollectionObject($object)
@@ -300,12 +368,14 @@ class Client
      * Map a single object to a resource class.
      *
      * @param string $resource name of the resource class
-     * @param stdClass $object
+     * @param \stdClass $object
      * @return Resource
      */
     private static function mapResource($resource, $object)
     {
-        if ($object == false || is_string($object)) return $object;
+        if ($object == false || is_string($object)) {
+            return $object;
+        }
 
         $baseResource = __NAMESPACE__ . '\\' . $resource;
         $class = (class_exists($baseResource)) ? $baseResource : 'Bigcommerce\\Api\\Resources\\' . $resource;
@@ -316,26 +386,45 @@ class Client
     /**
      * Map object representing a count to an integer value.
      *
-     * @param stdClass $object
+     * @param \stdClass $object
      * @return int
      */
     private static function mapCount($object)
     {
-        if ($object == false || is_string($object)) return $object;
+        if ($object == false || is_string($object)) {
+            return $object;
+        }
 
         return $object->count;
     }
 
     /**
+     * Swaps a temporary access code for a long expiry auth token.
+     *
+     * @param \stdClass $object
+     * @return \stdClass
+     */
+    public static function getAuthToken($object)
+    {
+        $context = array_merge(array('grant_type' => 'authorization_code'), (array)$object);
+        $connection = new Connection();
+        $connection->useUrlEncoded();
+
+        return $connection->post(self::$login_url . '/oauth2/token', $context);
+    }
+
+    /**
      * Pings the time endpoint to test the connection to a store.
      *
-     * @return DateTime
+     * @return \DateTime
      */
     public static function getTime()
     {
         $response = self::connection()->get(self::$api_path . '/time');
 
-        if ($response == false || is_string($response)) return $response;
+        if ($response == false || is_string($response)) {
+            return $response;
+        }
 
         return new \DateTime("@{$response->time}");
     }
@@ -367,7 +456,7 @@ class Client
      * Gets collection of custom fields for a product.
      *
      * @param int $id product ID
-     * @return mixed array|string list of products or XML string if useXml is true
+     * @return array|string list of products or XML string if useXml is true
      */
     public static function getProductCustomFields($id)
     {
@@ -378,7 +467,7 @@ class Client
      * Returns a single custom field by given id
      * @param  int $product_id product id
      * @param  int $id custom field id
-     * @return ProductCustomField|bool Returns ProductCustomField if exists, false if not exists
+     * @return Resources\ProductCustomField|bool Returns ProductCustomField if exists, false if not exists
      */
     public static function getProductCustomField($product_id, $id)
     {
@@ -414,7 +503,7 @@ class Client
      * @param int $product_id product id
      * @param int $id custom field id
      * @param mixed $object custom field to update
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function updateProductCustomField($product_id, $id, $object)
     {
@@ -426,7 +515,7 @@ class Client
      *
      * @param int $product_id product id
      * @param int $id custom field id
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function deleteProductCustomField($product_id, $id)
     {
@@ -437,7 +526,7 @@ class Client
      * Returns the total number of products in the collection.
      *
      * @param array $filter
-     * @return mixed int|string number of products or XML string if useXml is true
+     * @return int|string number of products or XML string if useXml is true
      */
     public static function getProductsCount($filter = array())
     {
@@ -449,7 +538,7 @@ class Client
      * Returns a single product resource by the given id.
      *
      * @param int $id product id
-     * @return Product|string
+     * @return Resources\Product|string
      */
     public static function getProduct($id)
     {
@@ -460,7 +549,7 @@ class Client
      * Create a new product.
      *
      * @param mixed $object fields to create
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function createProduct($object)
     {
@@ -472,7 +561,7 @@ class Client
      *
      * @param int $id product id
      * @param mixed $object fields to update
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function updateProduct($id, $object)
     {
@@ -483,7 +572,7 @@ class Client
      * Delete the given product.
      *
      * @param int $id product id
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function deleteProduct($id)
     {
@@ -493,7 +582,7 @@ class Client
     /**
      * Delete all products.
      *
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function deleteAllProducts()
     {
@@ -515,13 +604,24 @@ class Client
     /**
      * Create Options
      * @param $object
-     * @return hash|bool|mixed
+     * @return mixed
      */
-    public static function createOptions($object)
+    public static function createOption($object)
     {
         return self::createResource('/options', $object);
     }
 
+    /**
+     * Update the given option.
+     *
+     * @param int $id category id
+     * @param mixed $object
+     * @return mixed
+     */
+    public static function updateOption($id, $object)
+    {
+        return self::updateResource('/options/' . $id, $object);
+    }
 
     /**
      * Return the number of options in the collection
@@ -537,19 +637,18 @@ class Client
      * Return a single option by given id.
      *
      * @param int $id option id
-     * @return Option
+     * @return Resources\Option
      */
     public static function getOption($id)
     {
         return self::getResource('/options/' . $id, 'Option');
     }
 
-
     /**
      * Delete the given option.
      *
      * @param int $id option id
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function deleteOption($id)
     {
@@ -561,7 +660,7 @@ class Client
      *
      * @param int $option_id option id
      * @param int $id value id
-     * @return OptionValue
+     * @return Resources\OptionValue
      */
     public static function getOptionValue($option_id, $id)
     {
@@ -608,7 +707,7 @@ class Client
      * A single category by given id.
      *
      * @param int $id category id
-     * @return Category
+     * @return Resources\Category
      */
     public static function getCategory($id)
     {
@@ -619,7 +718,7 @@ class Client
      * Create a new category from the given data.
      *
      * @param mixed $object
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function createCategory($object)
     {
@@ -631,7 +730,7 @@ class Client
      *
      * @param int $id category id
      * @param mixed $object
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function updateCategory($id, $object)
     {
@@ -642,7 +741,7 @@ class Client
      * Delete the given category.
      *
      * @param int $id category id
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function deleteCategory($id)
     {
@@ -652,7 +751,7 @@ class Client
     /**
      * Delete all categories.
      *
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function deleteAllCategories()
     {
@@ -687,7 +786,7 @@ class Client
      * A single brand by given id.
      *
      * @param int $id brand id
-     * @return Brand
+     * @return Resources\Brand
      */
     public static function getBrand($id)
     {
@@ -698,7 +797,7 @@ class Client
      * Create a new brand from the given data.
      *
      * @param mixed $object
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function createBrand($object)
     {
@@ -710,7 +809,7 @@ class Client
      *
      * @param int $id brand id
      * @param mixed $object
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function updateBrand($id, $object)
     {
@@ -721,7 +820,7 @@ class Client
      * Delete the given brand.
      *
      * @param int $id brand id
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function deleteBrand($id)
     {
@@ -731,7 +830,7 @@ class Client
     /**
      * Delete all brands.
      *
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function deleteAllBrands()
     {
@@ -766,7 +865,7 @@ class Client
      * A single order.
      *
      * @param int $id order id
-     * @return Order
+     * @return Resources\Order
      */
     public static function getOrder($id)
     {
@@ -800,7 +899,7 @@ class Client
      * delete the order).
      *
      * @param int $id order id
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function deleteOrder($id)
     {
@@ -810,7 +909,7 @@ class Client
     /**
      * Delete all orders.
      *
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function deleteAllOrders()
     {
@@ -821,7 +920,7 @@ class Client
      * Create an order
      *
      * @param $object
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function createOrder($object)
     {
@@ -833,7 +932,7 @@ class Client
      *
      * @param int $id order id
      * @param mixed $object fields to update
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function updateOrder($id, $object)
     {
@@ -880,7 +979,7 @@ class Client
      * A single customer by given id.
      *
      * @param int $id customer id
-     * @return Customer
+     * @return Resources\Customer
      */
     public static function getCustomer($id)
     {
@@ -891,7 +990,7 @@ class Client
      * Create a new customer from the given data.
      *
      * @param mixed $object
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function createCustomer($object)
     {
@@ -903,7 +1002,7 @@ class Client
      *
      * @param int $id customer id
      * @param mixed $object
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function updateCustomer($id, $object)
     {
@@ -914,7 +1013,7 @@ class Client
      * Delete the given customer.
      *
      * @param int $id customer id
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function deleteCustomer($id)
     {
@@ -948,25 +1047,24 @@ class Client
      * Create Optionsets
      *
      * @param $object
-     * @return hash|bool|mixed
+     * @return mixed
      */
-    public static function createOptionsets($object)
+    public static function createOptionSet($object)
     {
         return self::createResource('/optionsets', $object);
     }
 
     /**
-     * Create Optionset Options
+     * Create Option Set Options
      *
      * @param $object
      * @param $id
-     * @return hash|bool|mixed
+     * @return mixed
      */
-    public static function createOptionsets_Options($object, $id)
+    public static function createOptionSetOption($object, $id)
     {
         return self::createResource('/optionsets/' . $id . '/options', $object);
     }
-
 
     /**
      * Returns the total number of option sets in the collection.
@@ -982,7 +1080,7 @@ class Client
      * A single option set by given id.
      *
      * @param int $id option set id
-     * @return OptionSet
+     * @return Resources\OptionSet
      */
     public static function getOptionSet($id)
     {
@@ -990,9 +1088,34 @@ class Client
     }
 
     /**
-     * Status codes used to represent the state of an order.
+     * Update the given option set.
      *
-     * @return array
+     * @param int $id option set id
+     * @param mixed $object
+     * @return mixed
+     */
+    public static function updateOptionSet($id, $object)
+    {
+        return self::updateResource('/optionsets/' . $id, $object);
+    }
+
+    /**
+     * Delete the given option set.
+     *
+     * @param int $id option id
+     * @return mixed
+     */
+    public static function deleteOptionSet($id)
+    {
+        Client::deleteResource('/optionsets/' . $id);
+    }
+
+    /**
+     * Status code used to represent the state of an order.
+     *
+     * @param int $id order status id
+     *
+     * @return mixed
      */
     public static function getOrderStatus($id)
     {
@@ -1043,7 +1166,7 @@ class Client
      * Create sku
      *
      * @param $object
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function createSku($object)
     {
@@ -1055,7 +1178,7 @@ class Client
      *
      * @param $id
      * @param $object
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function updateSku($id, $object)
     {
@@ -1063,10 +1186,20 @@ class Client
     }
 
     /**
+     * Returns the total number of SKUs in the collection.
+     *
+     * @return int
+     */
+    public static function getSkusCount()
+    {
+        return self::getCount('/products/skus/count');
+    }
+
+    /**
      * Get a single coupon by given id.
      *
      * @param int $id customer id
-     * @return Coupon
+     * @return Resources\Coupon
      */
     public static function getCoupon($id)
     {
@@ -1089,7 +1222,7 @@ class Client
      * Create coupon
      *
      * @param $object
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function createCoupon($object)
     {
@@ -1101,7 +1234,7 @@ class Client
      *
      * @param $id
      * @param $object
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function updateCoupon($id, $object)
     {
@@ -1112,7 +1245,7 @@ class Client
      * Delete the given coupon.
      *
      * @param int $id coupon id
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function deleteCoupon($id)
     {
@@ -1122,7 +1255,7 @@ class Client
     /**
      * Delete all Coupons.
      *
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function deleteAllCoupons()
     {
@@ -1167,7 +1300,9 @@ class Client
         if (!$limit) {
             $result = self::getTime();
 
-            if (!$result) return false;
+            if (!$result) {
+                return false;
+            }
 
             $limit = self::connection()->getHeader('X-BC-ApiLimit-Remaining');
         }
@@ -1205,7 +1340,7 @@ class Client
      *
      * @param $orderID
      * @param $object
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function createShipment($orderID, $object)
     {
@@ -1218,7 +1353,7 @@ class Client
      * @param $orderID
      * @param $shipmentID
      * @param $object
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function updateShipment($orderID, $shipmentID, $object)
     {
@@ -1230,7 +1365,7 @@ class Client
      *
      * @param $orderID
      * @param $shipmentID
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function deleteShipment($orderID, $shipmentID)
     {
@@ -1241,7 +1376,7 @@ class Client
      * Delete all Shipments for the given order.
      *
      * @param $orderID
-     * @return hash|bool|mixed
+     * @return mixed
      */
     public static function deleteAllShipmentsForOrder($orderID)
     {
